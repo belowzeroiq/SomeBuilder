@@ -3,7 +3,7 @@
 sudo apt update && sudo apt install -y \
     bc bison build-essential ccache curl flex \
     g++-multilib gcc-multilib git gnupg gperf \
-    lib32ncurses5-dev lib32readline-dev lib32z1-dev \
+    lib32readline-dev lib32z1-dev \
     liblz4-tool libncurses5-dev libsdl1.2-dev \
     libssl-dev libxml2 libxml2-utils \
     zstd pigz lzop \

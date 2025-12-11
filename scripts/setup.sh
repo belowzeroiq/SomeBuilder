@@ -9,7 +9,7 @@ sudo apt update && sudo apt install -y \
     zstd pigz lzop \
     rsync schedtool squashfs-tools zip \
     android-tools-adb android-tools-fastboot \
-    python3 python3-pip jq \
+    python-is-python3 python3 python3-pip jq \
     repo \
     git-lfs \
     android-sdk-platform-tools-common

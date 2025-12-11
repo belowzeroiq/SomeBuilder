@@ -12,7 +12,6 @@ SAFE_TIME=5760  # 1 hour and 35 minutes in seconds
 LOG_FILE="build.log"
 OTA_ZIP="${OUT_DIR}/target/product/${DEVICE_CODENAME}/*.zip"
 
-export ANDROID_JACK_VM_ARGS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -Xmx32G"
 export LC_ALL=C
 
 # ===== Functions =====

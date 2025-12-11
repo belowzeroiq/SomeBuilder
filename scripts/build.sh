@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+export LC_ALL=C
+
 # ===== Configuration =====
 # Essential Variables (should be set as env vars or defined here)
 ROM_NAME="${MAKEFILENAME%%_*}"  # Extract ROM base name
@@ -11,8 +13,6 @@ CCACHE_COPY_DIR="$HOME/ccache_copy"
 SAFE_TIME=5760  # 1 hour and 35 minutes in seconds
 LOG_FILE="build.log"
 OTA_ZIP="${OUT_DIR}/target/product/${DEVICE_CODENAME}/*.zip"
-
-export LC_ALL=C
 
 # ===== Functions =====
 

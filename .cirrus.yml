@@ -1,6 +1,6 @@
 env:
     DEVICE_CODENAME: topaz # Enter your device codename
-    ROMREPO: repo init -u https://github.com/crdroidandroid/android.git -b 13.0 # Enter ROM repo link
+    ROMREPO: https://github.com/crdroidandroid/android.git -b 13.0 # Enter ROM repo link
     LOCALMANIFEST: # Enter local_manifest link
     MAKEFILENAME: lineage_topaz # Enter makefile name (example: aosp_fleur)
     VARIANT: eng # Enter build variant (eng, user, userdebug)

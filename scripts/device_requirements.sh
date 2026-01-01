@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set_requirements() {
+  clear
 }
 
 set_requirements

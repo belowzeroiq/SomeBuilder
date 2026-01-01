@@ -3,7 +3,7 @@ env:
     ROMREPO: https://github.com/The-Clover-Project/manifest.git -b 16-qpr1 # Enter ROM repo link
     LOCALMANIFEST: https://github.com/topnotchfreaks/local_manifests -b clover # Enter local_manifest link
     MAKEFILENAME: clover_tapas # Enter makefile name (example: aosp_fleur)
-    VARIANT: userdebug # Enter build variant (eng, user, userdebug)
+    VARIANT: bp3a-userdebug # Enter build variant (eng, user, userdebug)
     EXTRACMD: # If you want to run any extra command before build
     TARGET: mka clover -j$(nproc --all) # Enter target (example: m bacon, make bacon, mka bacon)
     PIXELDRAIN_API_KEY: "ENCRYPTED[!cf4df094911df00fa94f3a5f289288607b54f9eb22aea58af20170d4d5f87483bf6e6ecb28580aa5db0f5f36b36ab735!]"

@@ -1,7 +1,7 @@
 env:
     DEVICE_CODENAME: tapas # Enter your device codename
     ROMREPO: https://github.com/The-Clover-Project/manifest.git -b 16-qpr1 # Enter ROM repo link
-    LOCALMANIFEST: # Enter local_manifest link
+    LOCALMANIFEST: https://github.com/topnotchfreaks/local_manifests -b clover # Enter local_manifest link
     MAKEFILENAME: clover_tapas # Enter makefile name (example: aosp_fleur)
     VARIANT: userdebug # Enter build variant (eng, user, userdebug)
     EXTRACMD: # If you want to run any extra command before build

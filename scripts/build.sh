@@ -134,7 +134,7 @@ monitor_time_with_logs() {
 build() {
     echo "Starting build..."
     source build/envsetup.sh || . build/envsetup.sh
-    lunch "$MAKEFILENAME-$VARIANT" || exit 1
+    # lunch "$MAKEFILENAME-$VARIANT" || exit 1
     [ -n "$EXTRACMD" ] && eval "$EXTRACMD"
     $TARGET -j$(nproc --all)  >> "$LOG_FILE" 2>&1 || {
         echo "Build failed!"

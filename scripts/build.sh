@@ -4,86 +4,21 @@ set -e
 export LC_ALL=C
 
 # ===== Configuration =====
-# Essential Variables (should be set as env vars or defined here)
-ROM_NAME="${MAKEFILENAME%%_*}"  # Extract ROM base name
-CCACHE_DIR=${HOME}/.ccache
-CCACHE_TAR="${ROM_NAME}.ccache.tar.gz"
-CCACHE_COPY_DIR="$HOME/ccache_copy"
-
-SAFE_TIME=5760  # 1 hour and 35 minutes in seconds
+ROM_NAME="${MAKEFILENAME%%_*}"
+SAFE_TIME=5760  # 96 minutes in seconds
 LOG_FILE="build.log"
-OTA_ZIP="${OUT_DIR}/target/product/${DEVICE_CODENAME}/*.zip"
 
 # ===== Functions =====
 
-# Cleanup handler
 cleanup() {
     echo "Performing cleanup..."
-    # Kill background processes
     kill "$TIMER_PID" 2>/dev/null || true
-    # Remove temporary files
-    rm -rf "$CCACHE_COPY_DIR" "$CCACHE_TAR"
 }
 trap cleanup EXIT
 
-setup_ccache() {
-    echo "Setting up ccache..."
-    export USE_CCACHE=1
-    ccache -M 50G
-    ccache -z
-}
-
-download_ccache() {
-    echo "Checking for existing ccache for ${ROM_NAME} on PixelDrain..."
-    response=$(curl -s -H "Authorization: Basic $(echo -n ":$PIXELDRAIN_API_KEY" | base64)" \
-        "https://pixeldrain.com/api/user/files") || return 1
-
-    ccache_file_id=$(echo "$response" | jq -r --arg CCACHE_TAR "$CCACHE_TAR" \
-        '[.files[] | select(.name | test("^" + $CCACHE_TAR + "$"))] | sort_by(.date_upload) | last | .id')
-      
-    if [ -z "$ccache_file_id" ] || [ "$ccache_file_id" = "null" ]; then
-        echo "No previous ccache found for ${ROM_NAME}, starting fresh."
-        return 1
-    fi
-
-    echo "Downloading ccache (ID: $ccache_file_id)..."
-    if curl -L -o "$CCACHE_TAR" "https://pixeldrain.com/api/file/$ccache_file_id?download"; then
-        mkdir -p "$CCACHE_DIR"
-        tar -xzf "$CCACHE_TAR" -C "$CCACHE_DIR"
-        rm -f "$CCACHE_TAR"
-        return 0
-    else
-        rm -f "$CCACHE_TAR"
-        return 1
-    fi
-}
-
-compress_and_upload_ccache() {
-    echo "Creating safe copy of ccache for ${ROM_NAME}..."
-    mkdir -p "$CCACHE_COPY_DIR"
-    rsync -a --delete "$CCACHE_DIR/" "$CCACHE_COPY_DIR/" || cp -a "$CCACHE_DIR/." "$CCACHE_COPY_DIR/"
-
-    echo "Compressing ccache..."
-    tar -czf "$CCACHE_TAR" -C "$CCACHE_COPY_DIR" . || return 1
-
-    echo "Uploading ${CCACHE_TAR} to PixelDrain..."
-    response=$(curl -s -X POST \
-        -H "Authorization: Basic $(echo -n ":$PIXELDRAIN_API_KEY" | base64)" \
-        -F "file=@$CCACHE_TAR" \
-        "https://pixeldrain.com/api/file") || return 1
-
-    file_id=$(echo "$response" | jq -r '.id')
-    if [ -n "$file_id" ] && [ "$file_id" != "null" ]; then
-        echo "Uploaded: https://pixeldrain.com/u/$file_id"
-    else
-        echo "Failed to upload ccache!"
-        return 1
-    fi
-}
-
 upload_ota() {
     echo "Uploading OTA ZIP..."
-    ota_file=$(find "out/target/product/${DEVICE_CODENAME}" -name "lineage*.zip" -type f | head -n 1)
+    local ota_file=$(find "out/target/product/${DEVICE_CODENAME}" -name "*.zip" -type f | head -n 1)
     
     if [ -z "$ota_file" ]; then
         echo "No OTA ZIP file found!"
@@ -91,21 +26,22 @@ upload_ota() {
     fi
     
     echo "Found OTA ZIP: $ota_file"
-    response=$(curl -s -X POST \
+    local response=$(curl -s -X POST \
         -H "Authorization: Basic $(echo -n ":$PIXELDRAIN_API_KEY" | base64)" \
         -F "file=@$ota_file" \
-        "https://pixeldrain.com/api/file") || return 1
+        "https://pixeldrain.com/api/file")
     
-    file_id=$(echo "$response" | jq -r '.id')
+    local file_id=$(echo "$response" | jq -r '.id')
     if [ -n "$file_id" ] && [ "$file_id" != "null" ]; then
         echo "OTA ZIP uploaded: https://pixeldrain.com/u/$file_id"
+        return 0
     else
         echo "Failed to upload OTA ZIP!"
         return 1
     fi
 }
 
-monitor_time_with_logs() {
+monitor_time() {
     local start_time=$(date +%s)
     local last_display_time=$start_time
     
@@ -114,56 +50,72 @@ monitor_time_with_logs() {
         local elapsed=$((current_time - start_time))
         local remaining=$((SAFE_TIME - elapsed))
         
-        (( remaining <= 0 )) && {
-            echo "Timeout approaching! Saving ccache..."
-            compress_and_upload_ccache
-            exit 0
-        }
+        if (( remaining <= 0 )); then
+            echo -e "\n\nTimeout reached! Stopping build..."
+            kill -TERM $BUILD_PID 2>/dev/null || true
+            exit 1
+        fi
         
+        # Display status every 5 minutes
         if (( current_time - last_display_time >= 300 )); then
-            echo -ne "\r$(date): Timer Running. Elapsed: ${elapsed}s / Timeout: ${SAFE_TIME}s | Remaining: ${remaining}s"
-            echo -e "\n--- Latest Build Logs ---"
-            tail -n 10 "$LOG_FILE"
-            echo -e "-------------------------"
+            echo -e "\n$(date): Elapsed: ${elapsed}s | Remaining: ${remaining}s"
+            echo "--- Latest Build Logs ---"
+            tail -n 10 "$LOG_FILE" 2>/dev/null || echo "No logs yet"
+            echo "-------------------------"
             last_display_time=$current_time
         fi
+        
         sleep 1
-   done
+    done
 }
 
 build() {
-    echo "Starting build..."
+    echo "Setting up build environment..."
     source build/envsetup.sh || . build/envsetup.sh
-    # lunch "$MAKEFILENAME-$VARIANT" || exit 1
+    
+    # Run optional extra commands
     [ -n "$EXTRACMD" ] && eval "$EXTRACMD"
-    $TARGET -j$(nproc --all)  >> "$LOG_FILE" 2>&1 || {
+    
+    echo "Starting build with target: $TARGET"
+    $TARGET -j$(nproc --all) >> "$LOG_FILE" 2>&1 &
+    BUILD_PID=$!
+    
+    # Wait for build to complete
+    if wait $BUILD_PID; then
+        echo "Build completed successfully!"
+        return 0
+    else
         echo "Build failed!"
-        exit 1
-    }
+        return 1
+    fi
 }
 
 # ===== Main Execution =====
-#{
+main() {
     echo "===== Build Script Starting ====="
     echo "ROM: $MAKEFILENAME"
     echo "Device: $DEVICE_CODENAME"
     echo "Variant: $VARIANT"
+    echo "Target: $TARGET"
+    echo "=============================="
     
-    # Start monitoring
+    # Initialize log file
     : > "$LOG_FILE"
-    monitor_time_with_logs &
+    
+    # Start time monitor in background
+    monitor_time &
     TIMER_PID=$!
     
-    # Build process
-    setup_ccache
-    download_ccache || echo "No ccache found, starting fresh"
-    build
+    # Run the build
+    if build; then
+        # Upload the OTA ZIP
+        upload_ota || echo "Warning: OTA upload failed"
+        echo "===== Build Completed Successfully ====="
+        exit 0
+    else
+        echo "===== Build Failed ====="
+        exit 1
+    fi
+}
 
-    # Upload OTA ZIP
-    upload_ota
-    
-    # Final ccache upload
-    compress_and_upload_ccache
-    
-    echo "===== Build Completed Successfully ====="
-#} | tee -a "$LOG_FILE"
+main "$@"
